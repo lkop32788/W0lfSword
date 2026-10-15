@@ -10,7 +10,7 @@
       "socs": ["A12", "A13", "A14", "A15", "A16", "A17", "A18"],
       "required_exploit": "darksword",
       "jailbreak_required": true,
-      "files_modified": ["/System/Library/PrivateFrameworks/SpringBoardHome.framework/SpringBoardHome"],
+      "files_modified": ["None (runtime dock state only, no file writes)"],
       "dylib_template": "templates/five_icon_dock.xm",
       "substrate_target": "com.apple.springboard",
       "status": "available"
