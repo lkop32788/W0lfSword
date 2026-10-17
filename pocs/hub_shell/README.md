@@ -58,6 +58,16 @@ v1 is a test harness, not a jailbreak:
   rebuilds the engine at `DEBUG=0` and the app at `FINALPACKAGE=1`, verifies the
   shipped binary carries no `KPRINTF` marker, and writes
   `.w0lfsword/dist/W0lfSwordHub-1.0-trollstore-release.ipa`.
+- **log store** (L3.5): the app installs `hub_log_hook_sink()` through
+  `tweak_log_set_hook()`, so every engine / probe / shell line lands in a
+  128-line ring (`pocs/hub_shell/hub_log.c`, tested on the host with
+  `bash scripts/run_hub_log_host_test.sh`). After the probes it exports the ring,
+  oldest first, to `Library/Application Support/hub.log`; the screen names the
+  stored / total counts and the file. Installing the hook also enables the engine
+  sink's panic forensics: `utils/tweak_log.m` only fsyncs the Documents copy
+  (at most once per 200 ms) when a host app installed a hook. One export per run
+  rather than a second streaming sink, because the log volume this app produces
+  can spend a device's whole daily disk-write budget (BUG.6).
 
 Both probes are read-only and gated on `exploit_is_done()`. The screen is one
 black label with those lines on it.
@@ -68,8 +78,9 @@ black label with those lines on it.
 - no sandbox-escape test suite or result export: L4.1 to L4.4
 - no SSV panel or escalation report: L5.3 to L5.5
 - no in-app confirm gates or limits screen (L7.1, L7.3, L7.4)
-- no XPF-verified offset table beyond the generated `offsets.json` (L3.2), and
-  no `TweakLog` plumbing into an app log view or file export (L3.5)
+- no XPF-verified offset table beyond the generated `offsets.json` (L3.2)
+- no log VIEWER (L6.3): the store is a ring the app exports, not a scrollback
+  screen, and nothing on the device shows older lines yet
 - never tested on hardware (L8.1)
 
 ## Build and install
@@ -109,8 +120,8 @@ refuses to load it.
 ## Engine reuse rule
 
 The app does not keep its own copy of engine sources. `Makefile` compiles only
-`main.m`, `AppDelegate.m`, `engine_stubs.m` and `hub_guard.c`, and links the
-archive, so one engine fix serves the tweak, this app and the standalone
+`main.m`, `AppDelegate.m`, `engine_stubs.m`, `hub_guard.c` and `hub_log.c`, and
+links the archive, so one engine fix serves the tweak, this app and the standalone
 terminal app. `engine_stubs.m` supplies the tweak-only UI callbacks
 (`tweak_exploit_set_cycle`, `_set_status`, `_status`, `_attempt`, `_cycle`) that
 `kexploit_opa334.m` references but the archive excludes. If the engine grows

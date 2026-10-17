@@ -11,6 +11,8 @@
 #import "utils/state.h"
 #import "sandbox_escape.h"
 #import "hub_guard.h"
+#import "hub_log.h"
+#import "utils/tweak_log.h"
 #import <unistd.h>
 
 @implementation AppDelegate
@@ -82,19 +84,28 @@ static NSString *rootCredsStatus(void) {
                                                    attributes:nil
                                                         error:NULL];
         hub_guard_init([appSupportDir UTF8String]);
+        // L3.5: every engine / probe / shell line goes into the app's own ring
+        // from here on (hub_log.c). Installing a hook also turns ON the engine
+        // sink's panic forensics: tweak_log.m only fsyncs the Documents copy
+        // (at most once per 200 ms) when a host app installed a hook, which is
+        // what keeps a kernel panic from costing the tail of the run.
+        tweak_log_set_hook(hub_log_hook_sink);
     }
     hub_guard_state_t guardState = hub_guard_register_launch();
     NSString *guardLine = (guardState == HUB_GUARD_DISABLED)
         ? [NSString stringWithFormat:@"panic guard: crashes %d/3 - disabled", hub_guard_crash_count()]
         : @"panic guard: ok";
+    NSString *offsetsLine = [self resolveOffsetsInfo];
+    TweakLog("[hub] launch - %s", tstr(guardLine));
+    TweakLog("[hub] offsets - %s", tstr(offsetsLine));
 
     self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
     UIViewController *vc = [[UIViewController alloc] init];
     vc.view.backgroundColor = [UIColor blackColor];
 
     UILabel *label = [[UILabel alloc] init];
-    label.text = [NSString stringWithFormat:@"W0lfSword Hub shell\nbuild path OK (L2.1)\nengine: libw0lfengine.a (L2.2)\noffsets: %@\n\nverification (L5.1/L5.2)\n%@\nrunning probes…",
-                  [self resolveOffsetsInfo], guardLine];
+    label.text = [NSString stringWithFormat:@"W0lfSword Hub shell\nbuild path OK (L2.1)\nengine: libw0lfengine.a (L2.2)\noffsets: %@\n\nverification (L5.1/L5.2)\n%@\nrunning probes...",
+                  offsetsLine, guardLine];
     label.textColor = [UIColor colorWithRed:0.60 green:0.85 blue:1.0 alpha:1.0];
     label.numberOfLines = 0;
     label.textAlignment = NSTextAlignmentCenter;
@@ -110,9 +121,24 @@ static NSString *rootCredsStatus(void) {
         if (exploit_is_done()) hub_guard_mark_success();
         NSString *krw = kernelRWStatus();
         NSString *creds = rootCredsStatus();
+        TweakLog("[hub] kernel r/w: %s", tstr(krw));
+        TweakLog("[hub] credentials: %s", tstr(creds));
+
+        // L3.5: one export per run. The engine already appends its own copy to
+        // Documents, but that file is the engine's; this one is the app's view
+        // of the same run, in the ring's order, and it is written after the
+        // probes so the host can pull it over USB without a second streaming sink.
+        NSString *logPath = appSupportDir
+            ? [appSupportDir stringByAppendingPathComponent:@"hub.log"] : nil;
+        int exported = logPath ? hub_log_export([logPath UTF8String]) : -1;
+        int stored = hub_log_count();
+        unsigned long total = hub_log_total();
+        NSString *logLine = [NSString stringWithFormat:@"log store: %d lines (of %lu) -> hub.log%@",
+                             stored, total, exported == 0 ? @"" : @" (export failed)"];
+        TweakLog("[hub] %s", tstr(logLine));
         dispatch_async(dispatch_get_main_queue(), ^{
-            label.text = [NSString stringWithFormat:@"W0lfSword Hub shell\nbuild path OK (L2.1)\nengine: libw0lfengine.a (L2.2)\noffsets: %@\n\nverification (L5.1/L5.2)\nkernel r/w: %@\ncredentials: %@\n%@",
-                          [self resolveOffsetsInfo], krw, creds, guardLine];
+            label.text = [NSString stringWithFormat:@"W0lfSword Hub shell\nbuild path OK (L2.1)\nengine: libw0lfengine.a (L2.2)\noffsets: %@\n\nverification (L5.1/L5.2)\nkernel r/w: %@\ncredentials: %@\n%@\n%@",
+                          offsetsLine, krw, creds, guardLine, logLine];
         });
     });
 

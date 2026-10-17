@@ -4,7 +4,7 @@ ARCHS = arm64
 include $(THEOS)/makefiles/common.mk
 
 APPLICATION_NAME = W0lfSwordHubShell
-W0lfSwordHubShell_FILES = main.m AppDelegate.m engine_stubs.m hub_guard.c
+W0lfSwordHubShell_FILES = main.m AppDelegate.m engine_stubs.m hub_guard.c hub_log.c
 W0lfSwordHubShell_FRAMEWORKS = UIKit Foundation IOKit CoreFoundation
 W0lfSwordHubShell_PRIVATE_FRAMEWORKS = IOSurface
 W0lfSwordHubShell_LIBRARIES = z sandbox
@@ -14,7 +14,12 @@ W0lfSwordHubShell_LIBRARIES = z sandbox
 # ENGINE_LIB is overridable so a release IPA can link the NDEBUG archive
 # (scripts/build_hub_ipa.sh --release) without touching the debug one.
 ENGINE_LIB ?= ../../.theos/libengine/libw0lfengine.a
-W0lfSwordHubShell_CFLAGS = -I../.. -I../../XPF/src -I../../XPF/external/ChOma/include
+# -Wno-unused-function: utils/tweak_log.h (included for TweakLog + the hook,
+# L3.5) defines static helpers the TWEAK uses (TweakNSLog) and an app never
+# does, so a shared header would otherwise fail the app build on -Wunused-function.
+# Same flag the standalone terminal app sets for the same header.
+W0lfSwordHubShell_CFLAGS = -I../.. -I../../XPF/src -I../../XPF/external/ChOma/include \
+    -Wno-unused-function
 W0lfSwordHubShell_LDFLAGS = $(ENGINE_LIB)
 W0lfSwordHubShell_INSTALL_PATH = /Applications
 

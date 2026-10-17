@@ -172,6 +172,21 @@ else
     note "check_scan_budget_cancel_writes.py missing — skipping"
 fi
 
+section "Hub app log store (L3.5)"
+# The app side of the TweakLog route: hub_log.c is the ring the hub installs via
+# tweak_log_set_hook() plus the on-demand export. Ordering, wraparound,
+# truncation and two concurrent writers are all off-by-one territory, and the
+# whole file is plain C, so it is tested on the host against the real source.
+if [ -f scripts/run_hub_log_host_test.sh ]; then
+    if bash scripts/run_hub_log_host_test.sh >/tmp/regression_hub_log.log 2>&1; then
+        ok "hub_log_host_test ($(grep -c '^  ok ' /tmp/regression_hub_log.log) checks)"
+    else
+        bad "run_hub_log_host_test.sh — see /tmp/regression_hub_log.log"
+    fi
+else
+    note "run_hub_log_host_test.sh missing — skipping"
+fi
+
 section "ROADMAP STATS table (AUD.12)"
 # The table is generated from the file, and the audit fails while the two
 # disagree; this proves the check can fail (fixture mutations, incl. the real
